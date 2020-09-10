@@ -91,25 +91,10 @@ class OtdHandler {
 				entry.time = Number(entry.time) || 0;
 				this.winners.push(entry);
 			}
-			this.convertNominations();
 		}).catch((error: string & {code: string}) => {
 			if (error.code !== 'ENOENT') throw new Error(error);
 			return;
 		});
-	}
-
-	/**
-	 * Handles old-format data from the IP and userid refactor
-	 */
-	convertNominations() {
-		for (const value of this.nominations.values()) {
-			if (!Array.isArray(value.userids)) value.userids = Object.keys(value.userids);
-			if (!Array.isArray(value.ips)) value.ips = Object.keys(value.ips);
-		}
-		for (const value of this.removedNominations.values()) {
-			if (!Array.isArray(value.userids)) value.userids = Object.keys(value.userids);
-			if (!Array.isArray(value.ips)) value.ips = Object.keys(value.ips);
-		}
 	}
 
 	startVote() {
@@ -136,7 +121,7 @@ class OtdHandler {
 			return user.sendTo(this.room, `This ${this.name.toLowerCase()} has already been ${this.id} in the past month.`);
 		}
 		for (const value of this.removedNominations.values()) {
-			if (value.userids.includes(toID(user)) || value.ips.includes(user.latestIp)) {
+			if (toID(user) in value.userids || user.latestIp in value.ips) {
 				return user.sendTo(
 					this.room,
 					`Since your nomination has been removed by staff, you cannot submit another ${this.name.toLowerCase()} until the next round.`
@@ -146,13 +131,13 @@ class OtdHandler {
 
 		const prevNom = this.nominations.get(id);
 		if (prevNom) {
-			if (!(prevNom.userids.includes(toID(user)) || prevNom.ips.includes(user.latestIp))) {
+			if (!(toID(user) in prevNom.userids || user.latestIp in prevNom.ips)) {
 				return user.sendTo(this.room, `This ${this.name.toLowerCase()} has already been nominated.`);
 			}
 		}
 
 		for (const [key, value] of this.nominations) {
-			if (value.userids.includes(toID(user)) || value.ips.includes(user.latestIp)) {
+			if (toID(user) in value.userids || user.latestIp in value.ips) {
 				user.sendTo(this.room, `Your previous vote for ${value.nomination} will be removed.`);
 				this.nominations.delete(key);
 				if (prenoms[this.id]) {
@@ -171,8 +156,8 @@ class OtdHandler {
 		const nomObj = {
 			nomination: nomination,
 			name: user.name,
-			userids: user.previousIDs.slice(),
-			ips: user.ips.slice(),
+			userids: Object.assign(obj, user.prevNames),
+			ips: Object.assign({}, user.ips),
 		};
 
 		this.nominations.set(id, nomObj);
@@ -273,7 +258,7 @@ class OtdHandler {
 
 		let success = false;
 		for (const [key, value] of this.nominations) {
-			if (value.userids.includes(name)) {
+			if (name in value.userids) {
 				this.removedNominations.set(key, value);
 				this.nominations.delete(key);
 				if (prenoms[this.id]) {
@@ -451,13 +436,13 @@ function selectHandler(message: string) {
 
 export const otdCommands: ChatCommands = {
 	start(target, room, user, connection, cmd) {
-		this.checkChat();
+		if (!this.canTalk()) return;
 
 		const handler = selectHandler(this.message);
 
 		if (!handler.room) return this.errorReply(`The room for this -otd doesn't exist.`);
 		if (room !== handler.room) return this.errorReply(`This command can only be used in ${handler.room.title}.`);
-		this.checkCan('mute', null, room);
+		if (!this.can('mute', null, room)) return false;
 
 		if (handler.voting) {
 			return this.errorReply(
@@ -472,13 +457,13 @@ export const otdCommands: ChatCommands = {
 	starthelp: [`/-otd start - Starts nominations for the Thing of the Day. Requires: % @ # &`],
 
 	end(target, room, user) {
-		this.checkChat();
+		if (!this.canTalk()) return;
 
 		const handler = selectHandler(this.message);
 
 		if (!handler.room) return this.errorReply(`The room for this -otd doesn't exist.`);
 		if (room !== handler.room) return this.errorReply(`This command can only be used in ${handler.room.title}.`);
-		this.checkCan('mute', null, room);
+		if (!this.can('mute', null, room)) return false;
 
 		if (!handler.voting) {
 			return this.errorReply(`There is no ${handler.name} of the ${handler.timeLabel} nomination in progress.`);
@@ -496,7 +481,7 @@ export const otdCommands: ChatCommands = {
 	],
 
 	nom(target, room, user) {
-		this.checkChat();
+		if (!this.canTalk()) return;
 		if (!target) return this.parse('/help otd');
 
 		const handler = selectHandler(this.message);
@@ -512,7 +497,7 @@ export const otdCommands: ChatCommands = {
 	nomhelp: [`/-otd nom [nomination] - Nominate something for Thing of the Day.`],
 
 	view(target, room, user, connection) {
-		this.checkChat();
+		if (!this.canTalk()) return;
 		if (!this.runBroadcast()) return false;
 
 		const handler = selectHandler(this.message);
@@ -529,13 +514,13 @@ export const otdCommands: ChatCommands = {
 	viewhelp: [`/-otd view - View the current nominations for the Thing of the Day.`],
 
 	remove(target, room, user) {
-		this.checkChat();
+		if (!this.canTalk()) return;
 
 		const handler = selectHandler(this.message);
 
 		if (!handler.room) return this.errorReply(`The room for this -otd doesn't exist.`);
 		if (room !== handler.room) return this.errorReply(`This command can only be used in ${handler.room.title}.`);
-		this.checkCan('mute', null, room);
+		if (!this.can('mute', null, room)) return false;
 
 		const userid = toID(target);
 		if (!userid) return this.errorReply(`'${target}' is not a valid username.`);
@@ -553,14 +538,14 @@ export const otdCommands: ChatCommands = {
 	],
 
 	force(target, room, user) {
-		this.checkChat();
+		if (!this.canTalk()) return;
 		if (!target) return this.parse('/help aotd force');
 
 		const handler = selectHandler(this.message);
 
 		if (!handler.room) return this.errorReply(`The room for this -otd doesn't exist.`);
 		if (room !== handler.room) return this.errorReply(`This command can only be used in ${handler.room.title}.`);
-		this.checkCan('declare', null, room);
+		if (!this.can('declare', null, room)) return false;
 
 		if (!toNominationId(target).length || target.length > 50) {
 			return this.sendReply(`'${target}' is not a valid ${handler.name.toLowerCase()} name.`);
@@ -575,13 +560,13 @@ export const otdCommands: ChatCommands = {
 	],
 
 	delay(target, room, user) {
-		this.checkChat();
+		if (!this.canTalk()) return;
 
 		const handler = selectHandler(this.message);
 
 		if (!handler.room) return this.errorReply(`The room for this -otd doesn't exist.`);
 		if (room !== handler.room) return this.errorReply(`This command can only be used in ${handler.room.title}.`);
-		this.checkCan('mute', null, room);
+		if (!this.can('mute', null, room)) return false;
 
 		if (!(handler.voting && handler.timer)) {
 			return this.errorReply(`There is no ${handler.name} of the ${handler.timeLabel} nomination to disable the timer for.`);
@@ -595,13 +580,13 @@ export const otdCommands: ChatCommands = {
 	],
 
 	set(target, room, user) {
-		this.checkChat();
+		if (!this.canTalk()) return;
 
 		const handler = selectHandler(this.message);
 
 		if (!handler.room) return this.errorReply(`The room for this -otd doesn't exist.`);
 		if (room !== handler.room) return this.errorReply(`This command can only be used in ${handler.room.title}.`);
-		this.checkCan('mute', null, room);
+		if (!this.can('mute', null, room)) return false;
 
 		const params = target.split(target.includes('|') ? '|' : ',').map(param => param.trim());
 
@@ -672,7 +657,7 @@ export const otdCommands: ChatCommands = {
 	],
 
 	winners(target, room, user, connection) {
-		this.checkChat();
+		if (!this.canTalk()) return;
 
 		const handler = selectHandler(this.message);
 
@@ -684,7 +669,7 @@ export const otdCommands: ChatCommands = {
 	winnershelp: [`/-otd winners - Displays a list of previous things of the day.`],
 
 	''(target, room) {
-		this.checkChat();
+		if (!this.canTalk()) return;
 		if (!this.runBroadcast()) return false;
 
 		const handler = selectHandler(this.message);

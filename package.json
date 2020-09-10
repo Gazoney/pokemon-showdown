@@ -4,9 +4,13 @@
   "description": "The server for the Pokémon Showdown battle simulator",
   "version": "0.11.2",
   "dependencies": {
+    "audit": "0.0.6",
+    "fix": "0.0.6",
     "probe-image-size": "^5.0.0",
     "sockjs": "0.3.20",
-    "sucrase": "^3.15.0"
+    "sucrase": "^3.15.0",
+    "typescript-eslint": "0.0.1-alpha.0",
+    "underscore.string": "^3.3.5"
   },
   "optionalDependencies": {
     "cloud-env": "^0.2.3",
@@ -75,7 +79,7 @@
     "eslint-plugin-import": "^2.20.2",
     "husky": "^4.2.3",
     "mocha": "^7.1.1",
-    "smogon": "^1.1.2",
+    "smogon": "^1.1.1",
     "typescript": "^3.9.7"
   }
 }

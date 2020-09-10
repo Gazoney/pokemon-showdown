@@ -1363,8 +1363,8 @@ const tourCommands: {basic: TourCommands, creation: TourCommands, moderation: To
 			if (params.length < 1) {
 				return this.sendReply(`Usage: ${cmd} <comma-separated arguments>`);
 			}
-			const name = params[0].trim();
-			this.checkChat(name);
+			const name = this.canTalk(params[0].trim());
+			if (!name || typeof name !== 'string') return;
 
 			if (name.length > MAX_CUSTOM_NAME_LENGTH) {
 				return this.errorReply(`The tournament's name cannot exceed ${MAX_CUSTOM_NAME_LENGTH} characters.`);
@@ -1580,7 +1580,7 @@ export const commands: ChatCommands = {
 	tours: 'tournament',
 	tournaments: 'tournament',
 	tournament(target, room, user, connection) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		let cmd;
 		[cmd, target] = Utils.splitFirst(target, ' ');
 		cmd = toID(cmd);
@@ -1604,7 +1604,7 @@ export const commands: ChatCommands = {
 		} else if (cmd === 'help') {
 			return this.parse('/help tournament');
 		} else if (this.meansYes(cmd)) {
-			this.checkCan('gamemanagement', null, room);
+			if (!this.can('gamemanagement', null, room)) return;
 			const rank = params[0];
 			if (rank === '@') {
 				if (room.settings.toursEnabled === true) {
@@ -1625,7 +1625,7 @@ export const commands: ChatCommands = {
 				return this.errorReply("Tournament enable setting not recognized.  Valid options include [%|@].");
 			}
 		} else if (this.meansNo(cmd)) {
-			this.checkCan('gamemanagement', null, room);
+			if (!this.can('gamemanagement', null, room)) return;
 			if (!room.settings.toursEnabled) {
 				return this.errorReply("Tournaments are already disabled.");
 			}
@@ -1633,7 +1633,7 @@ export const commands: ChatCommands = {
 			room.saveSettings();
 			return this.sendReply("Tournaments are now disabled.");
 		} else if (cmd === 'announce' || cmd === 'announcements') {
-			this.checkCan('gamemanagement', null, room);
+			if (!this.can('gamemanagement', null, room)) return;
 			if (!Config.tourannouncements.includes(room.roomid)) {
 				return this.errorReply("Tournaments in this room cannot be announced.");
 			}
@@ -1663,9 +1663,9 @@ export const commands: ChatCommands = {
 			room.saveSettings();
 		} else if (cmd === 'create' || cmd === 'new') {
 			if (room.settings.toursEnabled === true) {
-				this.checkCan('tournaments', null, room);
+				if (!this.can('tournaments', null, room)) return;
 			} else if (room.settings.toursEnabled === '%') {
-				this.checkCan('gamemoderation', null, room);
+				if (!this.can('gamemoderation', null, room)) return;
 			} else {
 				if (!user.can('gamemanagement', null, room)) {
 					return this.errorReply(`Tournaments are disabled in this room (${room.roomid}).`);
@@ -1712,7 +1712,7 @@ export const commands: ChatCommands = {
 				return this.sendReply(`Usage: ${cmd} <user>, <reason>`);
 			}
 			const targetUser = Users.get(params[0]);
-			this.checkCan('gamemoderation', targetUser, room);
+			if (!this.can('gamemoderation', targetUser, room)) return;
 
 			const targetUserid = toID(targetUser || params[0]);
 			if (!targetUser) return false;
@@ -1743,7 +1743,7 @@ export const commands: ChatCommands = {
 				return this.sendReply(`Usage: ${cmd} <user>`);
 			}
 			const targetUser = Users.get(params[0]);
-			this.checkCan('gamemoderation', targetUser, room);
+			if (!this.can('gamemoderation', targetUser, room)) return;
 
 			const targetUserid = toID(targetUser || params[0]);
 
@@ -1763,9 +1763,9 @@ export const commands: ChatCommands = {
 				if (typeof commandHandler === 'string') commandHandler = tourCommands.basic[commandHandler];
 			} else if (tourCommands.creation[cmd]) {
 				if (room.settings.toursEnabled === true) {
-					this.checkCan('tournaments', null, room);
+					if (!this.can('tournaments', null, room)) return;
 				} else if (room.settings.toursEnabled === '%') {
-					this.checkCan('gamemoderation', null, room);
+					if (!this.can('gamemoderation', null, room)) return;
 				} else {
 					if (!user.can('gamemanagement', null, room)) {
 						return this.errorReply(`Tournaments are disabled in this room (${room.roomid}).`);

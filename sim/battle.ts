@@ -1499,8 +1499,9 @@ export class Battle {
 				if (pokemon.fainted) continue;
 
 				sideTrapped = sideTrapped && pokemon.trapped;
-				const staleness = pokemon.volatileStaleness || pokemon.staleness;
-				if (staleness) sideStaleness = sideStaleness === 'external' ? sideStaleness : staleness;
+				if (pokemon.staleness) {
+					sideStaleness = sideStaleness === 'external' ? sideStaleness : pokemon.staleness;
+				}
 				pokemon.activeTurns++;
 			}
 			trappedBySide.push(sideTrapped);
@@ -1555,7 +1556,7 @@ export class Battle {
 			const side = this.sides[i];
 
 			for (const pokemon of side.pokemon) {
-				if (!pokemon.fainted && !(pokemon.volatileStaleness || pokemon.staleness)) {
+				if (!pokemon.fainted && !pokemon.staleness) {
 					canSwitch[i] = true;
 					break;
 				}
@@ -3235,7 +3236,7 @@ export class Battle {
 			}
 		}
 		for (const action of this.queue.list) {
-			delete (action as any).pokemon;
+			delete action.pokemon;
 		}
 
 		this.queue.battle = null!;

@@ -1,14 +1,9 @@
 export const Scripts: ModdedBattleScriptsData = {
 	gen: 8,
 	init() {
-		const addNewMoves = (pokemonid: string, moveids: string[], tutorMoveids?: string[]) => {
+		const addNewMoves = (pokemonid: string, moveids: string[], tutor = false) => {
 			for (const moveid of moveids.map(this.toID)) {
-				this.modData('Learnsets', this.toID(pokemonid)).learnset[moveid] = [`8M`];
-			}
-			if (tutorMoveids) {
-				for (const moveid of tutorMoveids.map(this.toID)) {
-					this.modData('Learnsets', this.toID(pokemonid)).learnset[moveid] = [`8T`];
-				}
+				this.modData('Learnsets', this.toID(pokemonid)).learnset[moveid] = [`8${tutor ? 'T' : 'M'}`];
 			}
 		};
 		for (const i in this.data.FormatsData) {
@@ -24,7 +19,7 @@ export const Scripts: ModdedBattleScriptsData = {
 		// Pikachu validation is handled in the base format's `checkLearnset` due to it being a middle-stage Pokemon
 		// Meowth validation is handled in the base format's `checkLearnset` due to it being a middle-stage Pokemon
 		addNewMoves('machamp', ['blazekick']);
-		addNewMoves('gengar', ['hypervoice', 'spiritshackle', 'quickattack', 'agility', 'closecombat', 'fakeout', 'bulkup', 'earthquake']);
+		addNewMoves('gengar', ['hypervoice', 'spiritshackle']);
 		addNewMoves('kingler', ['gunkshot', 'poisonjab', 'sludgebomb']);
 		addNewMoves('lapras', ['auroraveil', 'recover']);
 		// Eevee validation is handled in the base format's `checkLearnset` due to it being a middle-stage Pokemon
@@ -34,14 +29,14 @@ export const Scripts: ModdedBattleScriptsData = {
 		addNewMoves('cinderace', ['willowisp']);
 		addNewMoves('inteleon', ['nightslash', 'psychocut', 'crosspoison']);
 		addNewMoves('corviknight', ['whirlwind']);
-		addNewMoves('orbeetle', ['dazzlinggleam', 'teleport', 'whirlwind']);
+		addNewMoves('orbeetle', ['nastyplot', 'teleport', 'whirlwind']);
 		addNewMoves('drednaw', ['aquajet', 'flipturn']);
 		addNewMoves('coalossal', ['bulkup']);
 		addNewMoves('flapple', ['earthquake', 'dragonhammer']);
 		addNewMoves('appletun', ['earthpower', 'flamethrower', 'leafstorm']);
 		addNewMoves('sandaconda', ['bodyslam', 'flamethrower', 'shoreup']);
-		addNewMoves('toxtricity', ['nastyplot'], ['dracometeor', 'burningjealousy']);
-		addNewMoves('toxtricitylowkey', ['nastyplot'], ['dracometeor', 'burningjealousy']);
+		addNewMoves('toxtricity', ['dracometeor'], true);
+		addNewMoves('toxtricitylowkey', ['dracometeor'], true);
 		addNewMoves('centiskorch', ['earthquake', 'strengthsap']);
 		addNewMoves('hatterene', ['moonblast', 'gravity']);
 		addNewMoves('grimmsnarl', ['yawn', 'honeclaws']);

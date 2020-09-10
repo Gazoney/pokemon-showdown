@@ -306,7 +306,7 @@ export const LogViewer = new class {
 				return `<div class="notice">${message.slice(message.indexOf(',') + 1)}</div>`;
 			}
 			const group = name.charAt(0) !== ' ' ? `<small>${name.charAt(0)}</small>` : ``;
-			return `<div class="chat"><small>[${timestamp}] </small><strong>${group}${Utils.escapeHTML(name.slice(1))}:</strong> <q>${Chat.formatText(message)}</q></div>`;
+			return `<div class="chat"><small>[${timestamp}] </small><strong>${group}${name.slice(1)}:</strong> <q>${Chat.formatText(message)}</q></div>`;
 		}
 		case 'html': case 'raw': {
 			const [, html] = Utils.splitFirst(line, '|', 1);
@@ -435,9 +435,7 @@ type SearchMatch = readonly [string, string, string, string, string];
 
 export const LogSearcher = new class {
 	constructRegex(str: string) {
-		// modified regex replace
-		str = str.replace(/[\\^$.*?()[\]{}|]/g, '\\$&');
-		const searches = str.split('+');
+		const searches = str.split('+').map(term => Utils.escapeRegex(term));
 		if (searches.length <= 1) {
 			if (str.length <= 3) return `\b${str}`;
 			return str;
@@ -547,10 +545,7 @@ export const LogSearcher = new class {
 			});
 			results = stdout.split('--');
 		} catch (e) {
-			if (e.message.includes('No such file or directory')) {
-				throw new Chat.ErrorMessage(`Logs for date '${month}' do not exist.`);
-			}
-			if (e.code !== 1 && !e.message.includes('stdout maxBuffer')) throw e; // 2 means an error in ripgrep
+			if (e.code !== 1) throw e; // 2 means an error in ripgrep
 			if (e.stdout) {
 				results = e.stdout.split('--');
 			} else {
@@ -566,12 +561,6 @@ export const LogSearcher = new class {
 		limit?: number | null,
 		date?: string | null
 	) {
-		if (date) {
-			// if it's more than 7 chars, assume it's a month
-			if (date.length > 7) date = date.substr(0, 7);
-			// if it's less, assume they were trying a year
-			else if (date.length < 7) date = date.substr(0, 4);
-		}
 		const months = (date && toID(date) !== 'all' ? [date] : await new LogReaderRoom(roomid).listMonths()).reverse();
 		let count = 0;
 		let results: string[] = [];
@@ -646,7 +635,6 @@ export const pages: PageTable = {
 		}
 		let [roomid, date, opts] = Utils.splitFirst(args.join('-'), '--', 2) as
 			[RoomID, string | undefined, string | undefined];
-		if (date) date = date.trim();
 		if (!roomid || roomid.startsWith('-')) {
 			this.title = '[Logs]';
 			return LogViewer.list(user, roomid?.slice(1));
@@ -664,9 +652,9 @@ export const pages: PageTable = {
 			if (!room.checkModjoin(user) && !user.can('bypassall')) {
 				return LogViewer.error("Access denied");
 			}
-			if (!user.can('lock')) this.checkCan('mute', null, room);
+			if (!user.can('lock') && !this.can('mute', null, room)) return;
 		} else {
-			this.checkCan('lock');
+			if (!this.can('lock')) return;
 		}
 
 		void accessLog.writeLine(`${user.id}: <${roomid}> ${date}`);
@@ -700,7 +688,7 @@ export const pages: PageTable = {
 			if (Config.chatlogreader === 'fs' || !Config.chatlogreader) {
 				return LogSearcher.fsSearch(roomid, search, date, limit);
 			} else if (Config.chatlogreader === 'ripgrep') {
-				return LogSearcher.ripgrepSearch(roomid, search, limit, isAll ? null : date);
+				return LogSearcher.ripgrepSearch(roomid, search, limit, isAll ? date : '');
 			} else {
 				throw new Error(`Config.chatlogreader must be 'fs' or 'ripgrep'.`);
 			}
@@ -731,7 +719,7 @@ export const commands: ChatCommands = {
 	sl: 'searchlogs',
 	searchlog: 'searchlogs',
 	searchlogs(target, room) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		target = target.trim();
 		const args = target.split(',').map(item => item.trim());
 		if (!target) return this.parse('/help searchlogs');

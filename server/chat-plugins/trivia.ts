@@ -307,7 +307,7 @@ class TriviaPlayer extends Rooms.RoomGamePlayer {
 	}
 }
 
-export class Trivia extends Rooms.RoomGame {
+class Trivia extends Rooms.RoomGame {
 	playerTable: {[k: string]: TriviaPlayer};
 	gameid: ID;
 	minPlayers: number;
@@ -386,26 +386,29 @@ export class Trivia extends Rooms.RoomGame {
 
 	addTriviaPlayer(user: User) {
 		if (this.playerTable[user.id]) return this.room.tr('You have already signed up for this game.');
-		for (const id of user.previousIDs) {
+		for (const id in user.prevNames) {
 			if (this.playerTable[id]) return this.room.tr('You have already signed up for this game.');
 		}
 		if (this.kickedUsers.has(user.id)) {
 			return this.room.tr('You were kicked from the game and thus cannot join it again.');
 		}
-		for (const id of user.previousIDs) {
+		for (const id in user.prevNames) {
 			if (this.playerTable[id]) return this.room.tr('You have already signed up for this game.');
 			if (this.kickedUsers.has(id)) return this.room.tr('You were kicked from the game and cannot join until the next game.');
 		}
 
 		for (const id in this.playerTable) {
-			const targetUser = Users.get(id);
-			if (targetUser) {
-				const isSameUser = (
-					targetUser.previousIDs.includes(user.id) ||
-					targetUser.previousIDs.some(tarId => user.previousIDs.includes(tarId)) ||
-					targetUser.ips.some(ip => user.ips.includes(ip))
-				);
-				if (isSameUser) return this.room.tr('You have already signed up for this game.');
+			const tarUser = Users.get(id);
+			if (tarUser) {
+				if (tarUser.prevNames[user.id]) return this.room.tr('You have already signed up for this game.');
+
+				const tarPrevNames = Object.keys(tarUser.prevNames);
+				const prevNameMatch = tarPrevNames.some(tarId => (tarId in user.prevNames));
+				if (prevNameMatch) return this.room.tr('You have already signed up for this game.');
+
+				const tarIps = Object.keys(tarUser.ips);
+				const ipMatch = tarIps.some(ip => (ip in user.ips));
+				if (ipMatch) return this.room.tr('You have already signed up for this game.');
 			}
 		}
 		if (this.phase !== SIGNUP_PHASE && !this.canLateJoin) return this.room.tr("This game does not allow latejoins.");
@@ -509,35 +512,40 @@ export class Trivia extends Rooms.RoomGame {
 	 * Kicks a player from the game, preventing them from joining it again
 	 * until the next game begins.
 	 */
-	kick(user: User) {
-		if (!this.playerTable[user.id]) {
-			if (this.kickedUsers.has(user.id)) return this.room.tr`User ${user.name} has already been kicked from the game.`;
+	kick(tarUser: User) {
+		if (!this.playerTable[tarUser.id]) {
+			if (this.kickedUsers.has(tarUser.id)) return this.room.tr`User ${tarUser.name} has already been kicked from the game.`;
 
-			for (const id of user.previousIDs) {
-				if (this.kickedUsers.has(id)) return this.room.tr`User ${user.name} has already been kicked from the game.`;
+			for (const id in tarUser.prevNames) {
+				if (this.kickedUsers.has(id)) return this.room.tr`User ${tarUser.name} has already been kicked from the game.`;
 			}
 
 			for (const kickedUserid of this.kickedUsers) {
 				const kickedUser = Users.get(kickedUserid);
 				if (kickedUser) {
-					const isSameUser = (
-						kickedUser.previousIDs.includes(user.id) ||
-						kickedUser.previousIDs.some(id => user.previousIDs.includes(id)) ||
-						kickedUser.ips.some(ip => user.ips.includes(ip))
-					);
-					if (isSameUser) return this.room.tr`User ${user.name} has already been kicked from the game.`;
+					if (kickedUser.prevNames[tarUser.id]) {
+						return this.room.tr`User ${tarUser.name} has already been kicked from the game.`;
+					}
+
+					const prevNames = Object.keys(kickedUser.prevNames);
+					const nameMatch = prevNames.some(id => tarUser.prevNames[id]);
+					if (nameMatch) return this.room.tr`User ${tarUser.name} has already been kicked from the game.`;
+
+					const ips = Object.keys(kickedUser.ips);
+					const ipMatch = ips.some(ip => tarUser.ips[ip]);
+					if (ipMatch) return this.room.tr`User ${tarUser.name} has already been kicked from the game.`;
 				}
 			}
 
-			return this.room.tr`User ${user.name} is not a player in the game.`;
+			return this.room.tr`User ${tarUser.name} is not a player in the game.`;
 		}
 
-		this.kickedUsers.add(user.id);
-		for (const id of user.previousIDs) {
+		this.kickedUsers.add(tarUser.id);
+		for (const id in tarUser.prevNames) {
 			this.kickedUsers.add(id);
 		}
 
-		super.removePlayer(user);
+		super.removePlayer(tarUser);
 	}
 
 	leave(user: User) {
@@ -791,7 +799,7 @@ const hrtimeToNanoseconds = (hrtime: number[]) => {
  * First mode rewards points to the first user to answer the question
  * correctly.
  */
-export class FirstModeTrivia extends Trivia {
+class FirstModeTrivia extends Trivia {
 	answerQuestion(answer: string, user: User) {
 		const player = this.playerTable[user.id];
 		if (!player) return this.room.tr('You are not a player in the current trivia game.');
@@ -854,7 +862,7 @@ export class FirstModeTrivia extends Trivia {
  * Timer mode rewards up to 5 points to all players who answer correctly
  * depending on how quickly they answer the question.
  */
-export class TimerModeTrivia extends Trivia {
+class TimerModeTrivia extends Trivia {
 	answerQuestion(answer: string, user: User) {
 		const player = this.playerTable[user.id];
 		if (!player) return this.room.tr('You are not a player in the current trivia game.');
@@ -956,7 +964,7 @@ export class TimerModeTrivia extends Trivia {
  * depending on the ratio of correct players to total players (lower ratio is
  * better).
  */
-export class NumberModeTrivia extends Trivia {
+class NumberModeTrivia extends Trivia {
 	answerQuestion(answer: string, user: User) {
 		const player = this.playerTable[user.id];
 		if (!player) return this.room.tr('You are not a player in the current trivia game.');
@@ -1028,7 +1036,7 @@ export class NumberModeTrivia extends Trivia {
 /**
  * Triumvirate mode rewards points to the top three users to answer the question correctly.
  */
-export class TriumvirateModeTrivia extends Trivia {
+class TriumvirateModeTrivia extends Trivia {
 	answerQuestion(answer: string, user: User) {
 		const player = this.playerTable[user.id];
 		if (!player) return this.room.tr('You are not a player in the current trivia game.');
@@ -1088,12 +1096,12 @@ export class TriumvirateModeTrivia extends Trivia {
 	}
 }
 
-const subCommands: ChatCommands = {
+const commands: ChatCommands = {
 	new(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (!isTriviaRoom(room)) return this.errorReply("This command can only be used in the Trivia room.");
-		this.checkCan('show', null, room);
-		this.checkChat();
+		if (!this.can('show', null, room)) return false;
+		if (!this.canTalk()) return;
 		if (room.game) {
 			return this.errorReply(this.tr`There is already a game of ${room.game.title} in progress.`);
 		}
@@ -1166,7 +1174,7 @@ const subCommands: ChatCommands = {
 	newhelp: [`/trivia new [mode], [category], [length] - Begin a new trivia game. Requires: + % @ # &`],
 
 	join(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		const game = getTriviaGame(room);
 
 		const res = game.addTriviaPlayer(user);
@@ -1176,10 +1184,10 @@ const subCommands: ChatCommands = {
 	joinhelp: [`/trivia join - Join the current trivia game.`],
 
 	kick(target, room, user) {
-		room = this.requireRoom();
-		this.checkChat();
+		if (!room) return this.requiresRoom();
+		if (!this.canTalk()) return;
 		const game = getTriviaGame(room);
-		this.checkCan('mute', null, room);
+		if (!this.can('mute', null, room)) return false;
 
 		this.splitTarget(target);
 		const targetUser = this.targetUser;
@@ -1200,9 +1208,9 @@ const subCommands: ChatCommands = {
 	leavehelp: [`/trivia leave - Makes the player leave the game.`],
 
 	start(target, room) {
-		room = this.requireRoom();
-		this.checkCan('show', null, room);
-		this.checkChat();
+		if (!room) return this.requiresRoom();
+		if (!this.can('show', null, room)) return false;
+		if (!this.canTalk()) return;
 		const game = getTriviaGame(room);
 
 		const res = game.start();
@@ -1212,7 +1220,7 @@ const subCommands: ChatCommands = {
 	starthelp: [`/trivia start - Ends the signup phase of a trivia game and begins the game. Requires: + % @ # &`],
 
 	answer(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		const game = getTriviaGame(room);
 
 		const answer = toID(target);
@@ -1230,9 +1238,9 @@ const subCommands: ChatCommands = {
 
 	resume: 'pause',
 	pause(target, room, user, connection, cmd) {
-		room = this.requireRoom();
-		this.checkCan('show', null, room);
-		this.checkChat();
+		if (!room) return this.requiresRoom();
+		if (!this.can('show', null, room)) return false;
+		if (!this.canTalk()) return;
 		const res = (cmd === 'pause' ? getTriviaGame(room).pause() : getTriviaGame(room).resume());
 		if (res) return this.errorReply(res);
 	},
@@ -1240,9 +1248,9 @@ const subCommands: ChatCommands = {
 	resumehelp: [`/trivia resume - Resumes a paused trivia game. Requires: + % @ # &`],
 
 	end(target, room, user) {
-		room = this.requireRoom();
-		this.checkCan('show', null, room);
-		this.checkChat();
+		if (!room) return this.requiresRoom();
+		if (!this.can('show', null, room)) return false;
+		if (!this.canTalk()) return;
 		const game = getTriviaGame(room);
 
 		game.end(user);
@@ -1251,9 +1259,9 @@ const subCommands: ChatCommands = {
 
 	getwinners: 'win',
 	win(target, room, user) {
-		room = this.requireRoom();
-		this.checkCan('show', null, room);
-		this.checkChat();
+		if (!room) return this.requiresRoom();
+		if (!this.can('show', null, room)) return false;
+		if (!this.canTalk()) return;
 
 		const game = getTriviaGame(room);
 		if (game.game.length !== 'infinite' && !user.can('editroom', null, room)) {
@@ -1268,7 +1276,7 @@ const subCommands: ChatCommands = {
 	'': 'status',
 	players: 'status',
 	status(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (!this.runBroadcast()) return false;
 		const game = getTriviaGame(room);
 
@@ -1300,14 +1308,14 @@ const subCommands: ChatCommands = {
 
 	submit: 'add',
 	add(target, room, user, connection, cmd) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'questionworkshop') {
 			return this.errorReply(this.tr('This command can only be used in Question Workshop.'));
 		}
-		if (cmd === 'add') this.checkCan('mute', null, room);
-		if (cmd === 'submit') this.checkCan('show', null, room);
+		if (cmd === 'add' && !this.can('mute', null, room)) return false;
+		if (cmd === 'submit' && !this.can('show', null, room)) return false;
 		if (!target) return false;
-		this.checkChat();
+		if (!this.canTalk()) return false;
 
 		const params = target.split('\n').map(str => str.split('|'));
 		for (const param of params) {
@@ -1384,11 +1392,11 @@ const subCommands: ChatCommands = {
 	addhelp: [`/trivia add [category] | [question] | [answer1], [answer2], ... [answern] - Adds question(s) to the question database. Requires: % @ # &`],
 
 	review(target, room) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'questionworkshop') {
 			return this.errorReply(this.tr('This command can only be used in Question Workshop.'));
 		}
-		this.checkCan('ban', null, room);
+		if (!this.can('ban', null, room)) return false;
 
 		const submissions = triviaData.submissions;
 		if (!submissions) return this.sendReply(this.tr("No questions await review."));
@@ -1412,12 +1420,12 @@ const subCommands: ChatCommands = {
 
 	reject: 'accept',
 	accept(target, room, user, connection, cmd) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'questionworkshop') {
 			return this.errorReply(this.tr('This command can only be used in Question Workshop.'));
 		}
-		this.checkCan('ban', null, room);
-		this.checkChat();
+		if (!this.can('ban', null, room)) return false;
+		if (!this.canTalk()) return;
 
 		target = target.trim();
 		if (!target) return false;
@@ -1504,12 +1512,12 @@ const subCommands: ChatCommands = {
 	rejecthelp: [`/trivia reject [index1], [index2], ... [indexn] OR all - Remove questions from the submission database using their index numbers or ranges of them. Requires: @ # &`],
 
 	delete(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'questionworkshop') {
 			return this.errorReply(this.tr('This command can only be used in Question Workshop.'));
 		}
-		this.checkCan('mute', null, room);
-		this.checkChat();
+		if (!this.can('mute', null, room)) return false;
+		if (!this.canTalk()) return;
 
 		target = target.trim();
 		if (!target) return false;
@@ -1526,7 +1534,7 @@ const subCommands: ChatCommands = {
 				questions.splice(i, 1);
 				writeTriviaData();
 				this.modlog('TRIVIAQUESTION', null, `removed '${target}'`);
-				return this.privateModAction(room.tr`${user.name} removed question '${target}' from the question database.`);
+				return this.privateModAction(this.tr`${user.name} removed question '${target}' from the question database.`);
 			}
 		}
 
@@ -1535,12 +1543,12 @@ const subCommands: ChatCommands = {
 	deletehelp: [`/trivia delete [question] - Delete a question from the trivia database. Requires: % @ # &`],
 
 	move(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'questionworkshop') {
 			return this.errorReply(this.tr('This command can only be used in Question Workshop.'));
 		}
-		this.checkCan('mute', null, room);
-		this.checkChat();
+		if (!this.can('mute', null, room)) return false;
+		if (!this.canTalk()) return;
 
 		target = target.trim();
 		if (!target) return false;
@@ -1590,7 +1598,7 @@ const subCommands: ChatCommands = {
 	],
 
 	qs(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'questionworkshop') {
 			return this.errorReply(this.tr('This command can only be used in Question Workshop.'));
 		}
@@ -1616,7 +1624,7 @@ const subCommands: ChatCommands = {
 			return this.sendReply(buffer);
 		}
 
-		this.checkCan('mute', null, room);
+		if (!this.can('mute', null, room)) return false;
 
 		const category = toID(target);
 		if (category === 'random') return false;
@@ -1654,12 +1662,10 @@ const subCommands: ChatCommands = {
 		"/trivia qs [category] - View the questions in the specified category. Requires: % @ # &",
 	],
 
-	cssearch: 'search',
-	casesensitivesearch: 'search',
-	search(target, room, user, connection, cmd) {
-		room = this.requireRoom();
+	search(target, room, user) {
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'questionworkshop') return this.errorReply("This command can only be used in Question Workshop.");
-		this.checkCan('show', null, room);
+		if (!this.can('show', null, room)) return false;
 		if (!target.includes(',')) return this.errorReply(this.tr("No valid search arguments entered."));
 
 		let [type, ...query] = target.split(',');
@@ -1674,18 +1680,11 @@ const subCommands: ChatCommands = {
 			);
 		}
 
-		let queryString = query.join(',').trim();
+		const queryString = query.join(',').trim();
 		if (!queryString) return this.errorReply(this.tr("No valid search query as entered."));
 
-
-		let transformQuestion = (question: string) => question;
-		if (cmd === 'search') {
-			queryString = queryString.toLowerCase();
-			transformQuestion = (question: string) => question.toLowerCase();
-		}
-		const results = (triviaData as any)[type].filter((q: TriviaQuestion) => {
-			return transformQuestion(q.question).includes(queryString) && !SPECIAL_CATEGORIES[q.category];
-		});
+		const results = (triviaData as any)[type]
+			.filter((q: TriviaQuestion) => q.question.includes(queryString) && !SPECIAL_CATEGORIES[q.category]);
 		if (!results.length) return this.sendReply(this.tr`No results found under the ${type} list.`);
 
 		let buffer = `|raw|<div class="ladder"><table><tr><th>#</th><th>${this.tr`Category`}</th><th>${this.tr`Question`}</th></tr>` +
@@ -1697,13 +1696,10 @@ const subCommands: ChatCommands = {
 
 		this.sendReply(buffer);
 	},
-	searchhelp: [
-		`/trivia search [type], [query] - Searches for questions based on their type and their query. This command is case-insensitive. Valid types: submissions, subs, questions, qs. Requires: + % @ * &`,
-		`/trivia casesensitivesearch [type], [query] - Like /trivia search, but is case sensitive (capital letters matter). Requires: + % @ * &`,
-	],
+	searchhelp: [`/trivia search [type], [query] - Searches for questions based on their type and their query. Valid types: submissions, subs, questions, qs. Requires: + % @ * &`],
 
 	rank(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (!isTriviaRoom(room)) return this.errorReply(this.tr("This command can only be used in Trivia."));
 
 		let name;
@@ -1736,7 +1732,7 @@ const subCommands: ChatCommands = {
 
 	alltimeladder: 'ladder',
 	ladder(target, room, user, connection, cmd) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (!isTriviaRoom(room)) return this.errorReply('This command can only be used in Trivia.');
 		if (!this.runBroadcast()) return false;
 		const cache = cmd === 'ladder' ? cachedAltLadder : cachedLadder;
@@ -1767,17 +1763,17 @@ const subCommands: ChatCommands = {
 
 	clearquestions: 'clearqs',
 	clearqs(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'questionworkshop') {
 			return this.errorReply(this.tr("This command can only be used in Question Workshop"));
 		}
-		this.checkCan('declare', null, room);
+		if (!this.can('declare', null, room)) return false;
 		const category = toID(target);
 		if (ALL_CATEGORIES[category]) {
 			if (SPECIAL_CATEGORIES[category]) {
 				triviaData.questions = triviaData.questions!.filter(q => q.category !== category);
 				writeTriviaData();
-				return this.privateModAction(room.tr`${user.name} removed all questions of category '${category}'.`);
+				return this.privateModAction(this.tr`${user.name} removed all questions of category '${category}'.`);
 			} else {
 				return this.errorReply(this.tr`You cannot clear the category '${ALL_CATEGORIES[category]}'.`);
 			}
@@ -1789,7 +1785,7 @@ const subCommands: ChatCommands = {
 
 	pastgames: 'history',
 	history(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'trivia') return this.errorReply(this.tr("This command can only be used in Trivia."));
 		if (!this.runBroadcast()) return false;
 		if (!triviaData.history?.length) return this.sendReplyBox(this.tr("There is no game history."));
@@ -1811,62 +1807,77 @@ const subCommands: ChatCommands = {
 		return this.parse(`${this.cmdToken}help trivia`);
 	},
 	triviahelp() {
-		this.sendReply(
-			`|html|<div class="infobox">` +
-			`<strong>Categories</strong>: <code>Arts &amp; Entertainment</code>, <code>Pok&eacute;mon</code>, <code>Science &amp; Geography</code>, <code>Society &amp; Humanities</code>, <code>Random</code>, and <code>All</code>.<br />` +
-			`<details><summary><strong>Modes</strong></summary><ul>` +
-				`<li>First: the first correct responder gains 5 points.</li>` +
-				`<li>Timer: each correct responder gains up to 5 points based on how quickly they answer.</li>` +
-				`<li>Number: each correct responder gains up to 5 points based on how many participants are correct.</li>` +
-				`<li>Triumvirate: The first correct responder gains 5 points, the second 3 points, and the third 1 point.</li>` +
-				`<li>Random: randomly chooses one of First, Timer, Number, or Triumvirate.</li>` +
-			`</ul></details>` +
-			`<details><summary><strong>Game lengths</strong></summary><ul>` +
-				`<li>Short: 20 point score cap. The winner gains 3 leaderboard points.</li>` +
-				`<li>Medium: 35 point score cap. The winner gains 4 leaderboard points.</li>` +
-				`<li>Long: 50 point score cap. The winner gains 5 leaderboard points.</li>` +
-				`<li>Infinite: No score cap. The winner gains 5 leaderboard points, which increases the more questions they answer.</li>` +
-			`</ul></details>` +
-			`<details><summary><strong>Game commands</strong></summary><ul>` +
-				`<li><code>/trivia new [mode], [category], [length]</code> - Begin signups for a new trivia game. Requires: + % @ # &</li>` +
-				`<li><code>/trivia join</code> - Join a trivia game during signups.</li>` +
-				`<li><code>/trivia start</code> - Begin the game once enough users have signed up. Requires: + % @ # &</li>` +
-				`<li><code>/ta [answer]</code> - Answer the current question.</li>` +
-				`<li><code>/trivia kick [username]</code> - Disqualify a participant from the current trivia game. Requires: % @ # &</li>` +
-				`<li><code>/trivia leave</code> - Makes the player leave the game.</li>` +
-				`<li><code>/trivia end</code> - End a trivia game. Requires: + % @ # &</li>` +
-				`<li><code>/trivia win</code> - End a trivia game and tally the points to find winners. Requires: + % @ # & in Infinite length, else # &</li>` +
-				`<li><code>/trivia pause</code> - Pauses a trivia game. Requires: + % @ # &</li>` +
-				`<li><code>/trivia resume</code> - Resumes a paused trivia game. Requires: + % @ # &</li>` +
-			`</ul></details>` +
-				`<details><summary><strong>Question-modifying commands</strong></summary><ul>` +
-				`<li><code>/trivia submit [category] | [question] | [answer1], [answer2] ... [answern]</code> - Adds question(s) to the submission database for staff to review. Requires: + % @ # &</li>` +
-				`<li><code>/trivia review</code> - View the list of submitted questions. Requires: @ # &</li>` +
-				`<li><code>/trivia accept [index1], [index2], ... [indexn] OR all</code> - Add questions from the submission database to the question database using their index numbers or ranges of them. Requires: @ # &</li>` +
-				`<li><code>/trivia reject [index1], [index2], ... [indexn] OR all</code> - Remove questions from the submission database using their index numbers or ranges of them. Requires: @ # &</li>` +
-				`<li><code>/trivia add [category] | [question] | [answer1], [answer2], ... [answern]</code> - Adds question(s) to the question database. Requires: % @ # &</li>` +
-				`<li><code>/trivia delete [question]</code> - Delete a question from the trivia database. Requires: % @ # &</li>` +
-				`<li><code>/trivia qs</code> - View the distribution of questions in the question database.</li>` +
-				`<li><code>/trivia qs [category]</code> - View the questions in the specified category. Requires: % @ # &</li>` +
-				`<li><code>/trivia clearqs [category]</code> - Clear all questions in the given category. Requires: # &</li>` +
-			`</ul></details>` +
-			`<details><summary><strong>Informational commands</strong></summary><ul>` +
-				`<li><code>/trivia search [type], [query]</code> - Searches for questions based on their type and their query. Valid types: <code>submissions</code>, <code>subs</code>, <code>questions</code>, <code>qs</code>. Requires: + % @ # &</li>` +
-				`<li><code>/trivia casesensitivesearch [type], [query]</code> - Like <code>/trivia search</code>, but is case sensitive (i.e., capitalization matters). Requires: + % @ * &</li>` +
-				`<li><code>/trivia status [player]</code> - lists the player's standings (your own if no player is specified) and the list of players in the current trivia game.</li>` +
-				`<li><code>/trivia rank [username]</code> - View the rank of the specified user. If none is given, view your own.</li>` +
-				`<li><code>/trivia ladder</code> - View information about the top 15 users on the trivia leaderboard.</li>` +
-				`<li><code>/trivia alltimeladder</code> - View information about the top 15 users on the all time trivia leaderboard</li>` +
-				`<li><code>/trivia history</code> - View a list of the 10 most recently played trivia games.</li>` +
-			`</ul></details>`
-		);
+		this.sendReply('|html|<div class="infobox infobox-limited">' + [
+			`<strong>Modes:</strong>`,
+			`- First: the first correct responder gains 5 points.`,
+			`- Timer: each correct responder gains up to 5 points based on how quickly they answer.`,
+			`- Number: each correct responder gains up to 5 points based on how many participants are correct.`,
+			`- Triumvirate: The first correct responder gains 5 points, the second 3 points, and the third 1 point.`,
+			`- Random: randomly chooses one of First, Timer, Number, or Triumvirate.`,
+			``,
+			`<strong>Categories</strong>: <code>Arts &amp; Entertainment</code>, <code>Pok&eacute;mon</code>, <code>Science &amp; Geography</code>, <code>Society &amp; Humanities</code>, <code>Random</code>, and <code>All</code>.`,
+			``,
+			`<strong>Game lengths:</strong>`,
+			`- Short: 20 point score cap. The winner gains 3 leaderboard points.`,
+			`- Medium: 35 point score cap. The winner gains 4 leaderboard points.`,
+			`- Long: 50 point score cap. The winner gains 5 leaderboard points.`,
+			`- Infinite: No score cap. The winner gains 5 leaderboard points, which increases the more questions they answer.`,
+			``,
+			`<strong>Game commands:</strong>`,
+			`- <code>/trivia new [mode], [category], [length]</code> - Begin signups for a new trivia game. Requires: + % @ # &`,
+			`- <code>/trivia join</code> - Join a trivia game during signups.`,
+			`- <code>/trivia start</code> - Begin the game once enough users have signed up. Requires: + % @ # &`,
+			`- <code>/ta [answer]</code> - Answer the current question.`,
+			`- <code>/trivia kick [username]</code> - Disqualify a participant from the current trivia game. Requires: % @ # &`,
+			`- <code>/trivia leave</code> - Makes the player leave the game.`,
+			`- <code>/trivia end</code> - End a trivia game. Requires: + % @ # &`,
+			`- <code>/trivia win</code> - End a trivia game and tally the points to find winners. Requires: + % @ # & in Infinite length, else # &`,
+			`- <code>/trivia pause</code> - Pauses a trivia game. Requires: + % @ # &`,
+			`- <code>/trivia resume</code> - Resumes a paused trivia game. Requires: + % @ # &`,
+			``,
+			`<strong>Question-modifying commands:</strong>`,
+			`- <code>/trivia submit [category] | [question] | [answer1], [answer2] ... [answern]</code> - Adds question(s) to the submission database for staff to review. Requires: + % @ # &`,
+			`- <code>/trivia review</code> - View the list of submitted questions. Requires: @ # &`,
+			`- <code>/trivia accept [index1], [index2], ... [indexn] OR all</code> - Add questions from the submission database to the question database using their index numbers or ranges of them. Requires: @ # &`,
+			`- <code>/trivia reject [index1], [index2], ... [indexn] OR all</code> - Remove questions from the submission database using their index numbers or ranges of them. Requires: @ # &`,
+			`- <code>/trivia add [category] | [question] | [answer1], [answer2], ... [answern]</code> - Adds question(s) to the question database. Requires: % @ # &`,
+			`- <code>/trivia delete [question]</code> - Delete a question from the trivia database. Requires: % @ # &`,
+			`- <code>/trivia qs</code> - View the distribution of questions in the question database.`,
+			`- <code>/trivia qs [category]</code> - View the questions in the specified category. Requires: % @ # &`,
+			`- <code>/trivia clearqs [category]</code> - Clear all questions in the given category. Requires: # &`,
+			``,
+			`<strong>Informational commands:</strong>`,
+			`- <code>/trivia search [type], [query]</code> - Searches for questions based on their type and their query. Valid types: <code>submissions</code>, <code>subs</code>, <code>questions</code>, <code>qs</code>. Requires: + % @ # &`,
+			`- <code>/trivia status [player]</code> - lists the player's standings (your own if no player is specified) and the list of players in the current trivia game.`,
+			`- <code>/trivia rank [username]</code> - View the rank of the specified user. If none is given, view your own.`,
+			`- <code>/trivia ladder</code> - View information about the top 15 users on the trivia leaderboard.`,
+			`- <code>/trivia alltimeladder</code> - View information about the top 15 users on the all time trivia leaderboard`,
+			`- <code>/trivia history</code> - View a list of the 10 most recently played trivia games.`,
+		].join('<br />') + '</div>');
 	},
 };
 
-export const commands: ChatCommands = {
-	trivia: subCommands,
-	ta: subCommands.answer,
-	triviahelp: subCommands.triviahelp,
+module.exports = {
+	ALL_CATEGORIES,
+	MAIN_CATEGORIES,
+	SPECIAL_CATEGORIES,
+	MODES,
+	LENGTHS,
+
+	triviaData,
+	writeTriviaData,
+
+	Trivia,
+	FirstModeTrivia,
+	TimerModeTrivia,
+	NumberModeTrivia,
+	TriumvirateModeTrivia,
+
+	commands: {
+		trivia: commands,
+		ta: commands.answer,
+		triviahelp: commands.triviahelp,
+	},
 };
 
 process.nextTick(() => {

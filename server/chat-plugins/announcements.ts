@@ -51,7 +51,7 @@ export const commands: ChatCommands = {
 		htmlcreate: 'new',
 		create: 'new',
 		new(target, room, user, connection, cmd, message) {
-			room = this.requireRoom();
+			if (!room) return this.requiresRoom();
 			if (!target) return this.parse('/help announcement new');
 			target = target.trim();
 			if (room.battle) return this.errorReply(this.tr("Battles do not support announcements."));
@@ -61,33 +61,34 @@ export const commands: ChatCommands = {
 
 			const supportHTML = cmd === 'htmlcreate';
 
-			this.checkCan('minigame', null, room);
-			if (supportHTML) this.checkCan('declare', null, room);
-			this.checkChat();
+			if (!this.can('minigame', null, room)) return false;
+			if (supportHTML && !this.can('declare', null, room)) return false;
+			if (!this.canTalk()) return;
 			if (room.minorActivity) {
 				return this.errorReply(this.tr("There is already a poll or announcement in progress in this room."));
 			}
 
-			const source = supportHTML ? this.checkHTML(target) : Utils.escapeHTML(target);
+			const source = supportHTML ? this.canHTML(target) : Utils.escapeHTML(target);
+			if (!source) return;
 
 			room.minorActivity = new Announcement(room, source);
 			room.minorActivity.display();
 
 			this.roomlog(`${user.name} used ${message}`);
 			this.modlog('ANNOUNCEMENT');
-			return this.privateModAction(room.tr`An announcement was started by ${user.name}.`);
+			return this.privateModAction(this.tr`An announcement was started by ${user.name}.`);
 		},
 		newhelp: [`/announcement create [announcement] - Creates an announcement. Requires: % @ # &`],
 
 		timer(target, room, user) {
-			room = this.requireRoom();
+			if (!room) return this.requiresRoom();
 			if (!room.minorActivity || room.minorActivity.activityId !== 'announcement') {
 				return this.errorReply(this.tr("There is no announcement running in this room."));
 			}
 			const announcement = room.minorActivity;
 
 			if (target) {
-				this.checkCan('minigame', null, room);
+				if (!this.can('minigame', null, room)) return false;
 				if (target === 'clear') {
 					if (!announcement.timeout) return this.errorReply(this.tr("There is no timer to clear."));
 					clearTimeout(announcement.timeout);
@@ -100,7 +101,6 @@ export const commands: ChatCommands = {
 				if (announcement.timeout) clearTimeout(announcement.timeout);
 				announcement.timeoutMins = timeout;
 				announcement.timeout = setTimeout(() => {
-					if (!room) return; // do nothing if the room doesn't exist anymore
 					if (announcement) announcement.end();
 					room.minorActivity = null;
 				}, (timeout * 60000));
@@ -124,9 +124,9 @@ export const commands: ChatCommands = {
 		close: 'end',
 		stop: 'end',
 		end(target, room, user) {
-			room = this.requireRoom();
-			this.checkCan('minigame', null, room);
-			this.checkChat();
+			if (!room) return this.requiresRoom();
+			if (!this.can('minigame', null, room)) return false;
+			if (!this.canTalk()) return;
 			if (!room.minorActivity || room.minorActivity.activityId !== 'announcement') {
 				return this.errorReply(this.tr("There is no announcement running in this room."));
 			}
@@ -136,13 +136,13 @@ export const commands: ChatCommands = {
 			announcement.end();
 			room.minorActivity = null;
 			this.modlog('ANNOUNCEMENT END');
-			return this.privateModAction(room.tr`The announcement was ended by ${user.name}.`);
+			return this.privateModAction(this.tr`The announcement was ended by ${user.name}.`);
 		},
 		endhelp: [`/announcement end - Ends a announcement and displays the results. Requires: % @ # &`],
 
 		show: 'display',
 		display(target, room, user, connection) {
-			room = this.requireRoom();
+			if (!room) return this.requiresRoom();
 			if (!room.minorActivity || room.minorActivity.activityId !== 'announcement') {
 				return this.errorReply(this.tr("There is no announcement running in this room."));
 			}

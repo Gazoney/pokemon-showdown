@@ -477,14 +477,12 @@ export class RoomBattle extends RoomGames.RoomGame {
 	ended: boolean;
 	active: boolean;
 	replaySaved: boolean;
-	forcePublic: string | null = null;
 	playerTable: {[userid: string]: RoomBattlePlayer};
 	players: RoomBattlePlayer[];
 	p1: RoomBattlePlayer;
 	p2: RoomBattlePlayer;
 	p3: RoomBattlePlayer;
 	p4: RoomBattlePlayer;
-	inviteOnlySetter: ID | null;
 	logData: AnyObject | null;
 	endType: string;
 	/**
@@ -527,7 +525,6 @@ export class RoomBattle extends RoomGames.RoomGame {
 		this.p2 = null!;
 		this.p3 = null!;
 		this.p4 = null!;
-		this.inviteOnlySetter = null!;
 
 		// data to be logged
 		this.allowExtraction = {};
@@ -1026,14 +1023,17 @@ export class RoomBattle extends RoomGames.RoomGame {
 			void this.stream.write(`>player ${slot} ${JSON.stringify(options)}`);
 		}
 
-		if (user) {
-			this.room.auth.set(player.id, Users.PLAYER_SYMBOL);
-			if (this.rated && !this.forcePublic) {
-				this.forcePublic = user.battlesForcedPublic();
-			}
-		}
+		if (user) this.room.auth.set(player.id, Users.PLAYER_SYMBOL);
 		if (user?.inRooms.has(this.roomid)) this.onConnect(user);
 		return player;
+	}
+
+	forcedPublic() {
+		if (!this.rated) return;
+		for (const player of this.players) {
+			const user = player.getUser();
+			if (user?.forcedPublic) return user.forcedPublic;
+		}
 	}
 
 	makePlayer(user: User) {

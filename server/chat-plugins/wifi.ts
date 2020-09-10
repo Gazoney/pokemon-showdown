@@ -39,7 +39,7 @@ class Giveaway {
 	tid: string;
 	prize: string;
 	phase: string;
-	joined: {[k: string]: ID};
+	joined: {[k: string]: string};
 	timer: NodeJS.Timer | null;
 	monIDs: Set<string>;
 	sprite: string;
@@ -89,14 +89,14 @@ class Giveaway {
 	checkJoined(user: User) {
 		for (const ip in this.joined) {
 			if (user.latestIp === ip) return ip;
-			if (user.previousIDs.includes(this.joined[ip])) return this.joined[ip];
+			if (this.joined[ip] in user.prevNames) return this.joined[ip];
 		}
 		return false;
 	}
 
 	kickUser(user: User) {
 		for (const ip in this.joined) {
-			if (user.latestIp === ip || user.previousIDs.includes(this.joined[ip])) {
+			if (user.latestIp === ip || this.joined[ip] in user.prevNames) {
 				user.sendTo(
 					this.room,
 					`|uhtmlchange|giveaway${this.gaNumber}${this.phase}|<div class="broadcast-blue">${this.generateReminder()}</div>`
@@ -107,11 +107,8 @@ class Giveaway {
 	}
 
 	checkExcluded(user: User) {
-		return (
-			user === this.giver ||
-			this.giver.ips.includes(user.latestIp) ||
-			this.giver.previousIDs.includes(toID(user))
-		);
+		if (user === this.giver || user.latestIp in this.giver.ips || toID(user) in this.giver.prevNames) return true;
+		return false;
 	}
 
 	static checkBanned(room: Room, user: User) {
@@ -351,9 +348,7 @@ export class QuestionGiveaway extends Giveaway {
 	}
 
 	checkExcluded(user: User) {
-		if (user === this.host) return true;
-		if (this.host.ips.includes(user.latestIp)) return true;
-		if (this.host.previousIDs.includes(toID(user))) return true;
+		if (user === this.host || user.latestIp in this.host.ips || toID(user) in this.host.prevNames) return true;
 		return super.checkExcluded(user);
 	}
 }
@@ -627,7 +622,7 @@ const cmds: ChatCommands = {
 	quiz: 'question',
 	qg: 'question',
 	question(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'wifi' || !target) return false;
 		if (room.giveaway) return this.errorReply("There is already a giveaway going on!");
 
@@ -656,7 +651,7 @@ const cmds: ChatCommands = {
 	},
 	changeanswer: 'changequestion',
 	changequestion(target, room, user, conn, cmd) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'wifi') return false;
 		if (!room.giveaway) return this.errorReply("There is no giveaway going on at the moment.");
 		if (room.giveaway.type !== 'question') return this.errorReply("This is not a question giveaway.");
@@ -667,7 +662,7 @@ const cmds: ChatCommands = {
 	},
 	showanswer: 'viewanswer',
 	viewanswer(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'wifi') return false;
 		const giveaway = room.giveaway as QuestionGiveaway;
 		if (!giveaway) return this.errorReply("There is no giveaway going on at the moment.");
@@ -679,9 +674,9 @@ const cmds: ChatCommands = {
 	},
 	guessanswer: 'guess',
 	guess(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'wifi') return this.errorReply("This command can only be used in the Wi-Fi room.");
-		this.checkChat();
+		if (!this.canTalk()) return;
 		if (!room.giveaway) return this.errorReply("There is no giveaway going on at the moment.");
 		if (room.giveaway.type !== 'question') return this.errorReply("This is not a question giveaway.");
 		(room.giveaway as QuestionGiveaway).guessAnswer(user, target);
@@ -691,7 +686,7 @@ const cmds: ChatCommands = {
 	lg: 'lottery',
 	lotto: 'lottery',
 	lottery(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'wifi' || !target) return false;
 		if (room.giveaway) return this.errorReply("There is already a giveaway going on!");
 
@@ -730,10 +725,9 @@ const cmds: ChatCommands = {
 	joinlotto: 'join',
 	joinlottery: 'join',
 	join(target, room, user, conn, cmd) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'wifi') return this.errorReply("This command can only be used in the Wi-Fi room.");
-		this.checkChat();
-		if (user.semilocked) return;
+		if (!this.canTalk() || user.semilocked) return;
 		const giveaway = room.giveaway as LotteryGiveaway;
 		if (!giveaway) return this.errorReply("There is no giveaway going on at the moment.");
 		if (giveaway.type !== 'lottery') return this.errorReply("This is not a lottery giveaway.");
@@ -755,7 +749,7 @@ const cmds: ChatCommands = {
 	gts: {
 		new: 'start',
 		start(target, room, user) {
-			room = this.requireRoom();
+			if (!room) return this.requiresRoom();
 			if (room.roomid !== 'wifi' || !target) return false;
 			if (room.gtsga) return this.errorReply("There is already a GTS giveaway going on!");
 
@@ -771,7 +765,7 @@ const cmds: ChatCommands = {
 			}
 			const targetUser = Users.get(giver);
 			if (!targetUser || !targetUser.connected) return this.errorReply(`User '${giver}' is not online.`);
-			this.checkCan('warn', null, room);
+			if (!this.can('warn', null, room)) return this.errorReply("Permission denied.");
 			if (!targetUser.autoconfirmed) {
 				return this.errorReply(`User '${targetUser.name}' needs to be autoconfirmed to host a giveaway.`);
 			}
@@ -783,7 +777,7 @@ const cmds: ChatCommands = {
 			this.modlog('GTS GIVEAWAY', null, `for ${targetUser.getLastId()} with ${amount} Pokémon`);
 		},
 		left(target, room, user) {
-			room = this.requireRoom();
+			if (!room) return this.requiresRoom();
 			if (room.roomid !== 'wifi') return false;
 			if (!room.gtsga) return this.errorReply("There is no GTS giveaway going on!");
 			if (!user.can('warn', null, room) && user !== room.gtsga.giver) {
@@ -805,7 +799,7 @@ const cmds: ChatCommands = {
 			room.gtsga.updateLeft(newamount);
 		},
 		sent(target, room, user) {
-			room = this.requireRoom();
+			if (!room) return this.requiresRoom();
 			if (room.roomid !== 'wifi') return false;
 			if (!room.gtsga) return this.errorReply("There is no GTS giveaway going on!");
 			if (!user.can('warn', null, room) && user !== room.gtsga.giver) {
@@ -817,7 +811,7 @@ const cmds: ChatCommands = {
 			room.gtsga.updateSent(target);
 		},
 		full(target, room, user) {
-			room = this.requireRoom();
+			if (!room) return this.requiresRoom();
 			if (room.roomid !== 'wifi') return false;
 			if (!room.gtsga) return this.errorReply("There is no GTS giveaway going on!");
 			if (!user.can('warn', null, room) && user !== room.gtsga.giver) {
@@ -828,10 +822,10 @@ const cmds: ChatCommands = {
 			room.gtsga.stopDeposits();
 		},
 		end(target, room, user) {
-			room = this.requireRoom();
+			if (!room) return this.requiresRoom();
 			if (room.roomid !== 'wifi') return this.errorReply("This command can only be used in the Wi-Fi room.");
 			if (!room.gtsga) return this.errorReply("There is no GTS giveaway going on at the moment.");
-			this.checkCan('warn', null, room);
+			if (!this.can('warn', null, room)) return false;
 
 			if (target && target.length > 300) {
 				return this.errorReply("The reason is too long. It cannot exceed 300 characters.");
@@ -845,9 +839,9 @@ const cmds: ChatCommands = {
 	// general.
 	ban(target, room, user) {
 		if (!target) return false;
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'wifi') return this.errorReply("This command can only be used in the Wi-Fi room.");
-		this.checkCan('warn', null, room);
+		if (!this.can('warn', null, room)) return false;
 
 		target = this.splitTarget(target, false);
 		const targetUser = this.targetUser;
@@ -867,9 +861,9 @@ const cmds: ChatCommands = {
 	},
 	unban(target, room, user) {
 		if (!target) return false;
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'wifi') return this.errorReply("This command can only be used in the Wi-Fi room.");
-		this.checkCan('warn', null, room);
+		if (!this.can('warn', null, room)) return false;
 
 		this.splitTarget(target, false);
 		const targetUser = this.targetUser;
@@ -884,10 +878,10 @@ const cmds: ChatCommands = {
 	},
 	stop: 'end',
 	end(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'wifi') return this.errorReply("This command can only be used in the Wi-Fi room.");
 		if (!room.giveaway) return this.errorReply("There is no giveaway going on at the moment.");
-		if (user.id !== room.giveaway.host.id) this.checkCan('warn', null, room);
+		if (!this.can('warn', null, room) && user.id !== room.giveaway.host.id) return false;
 
 		if (target && target.length > 300) {
 			return this.errorReply("The reason is too long. It cannot exceed 300 characters.");
@@ -899,7 +893,7 @@ const cmds: ChatCommands = {
 	},
 	rm: 'remind',
 	remind(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'wifi') return this.errorReply("This command can only be used in the Wi-Fi room.");
 		const giveaway = room.giveaway;
 		if (!giveaway) return this.errorReply("There is no giveaway going on at the moment.");
@@ -912,7 +906,7 @@ const cmds: ChatCommands = {
 		}
 	},
 	count(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'wifi') return this.errorReply("This command can only be used in the Wi-Fi room.");
 		target = [...Giveaway.getSprite(target)[0]][0];
 		if (!target) return this.errorReply("No mon entered - /giveaway count pokemon.");
@@ -927,13 +921,13 @@ const cmds: ChatCommands = {
 	},
 	'': 'help',
 	help(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== 'wifi') return this.errorReply("This command can only be used in the Wi-Fi room.");
 
 		let reply = '';
 		switch (target) {
 		case 'staff':
-			this.checkCan('show', null, room);
+			if (!this.can('show', null, room)) return;
 			reply = '<strong>Staff commands:</strong><br />' +
 					'- question or qg <em>User | OT | TID | Prize | Question | Answer[ | Answer2 | Answer3]</em> - Start a new question giveaway (voices can only host for themselves, staff can for all users) (Requires: + % @ # &)<br />' +
 					'- lottery or lg <em>User | OT | TID | Prize[| Number of Winners]</em> - Starts a lottery giveaway (voices can only host for themselves, staff can for all users) (Requires: + % @ # &)<br />' +
@@ -945,7 +939,7 @@ const cmds: ChatCommands = {
 					'- count <em>Mon</em> - Displays how often a certain mon has been given away. Use <code>!giveaway count</code> to broadcast this to the entire room<br />';
 			break;
 		case 'gts':
-			this.checkCan('show', null, room);
+			if (!this.can('show', null, room)) return;
 			reply = '<strong>GTS giveaway commands:</strong><br />' +
 					'- gts start <em>User | Amount | Summary of given mon | What to deposit | What to look for</em> - Starts a gts giveaway (Requires: % @ # &)<br />' +
 					'- gts left <em>Amount</em> - Updates the amount left for the current GTS giveaway. Without an amount specified, shows how many Pokémon are left, and who the latest winners are.<br />' +

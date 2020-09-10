@@ -80,7 +80,7 @@ function generateDish(): [string, string[]] {
 
 export const commands: ChatCommands = {
 	foodfight(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== thecafe.roomid) return this.errorReply("This command is only available in The Café.");
 
 		if (!Object.keys(dishes).length) return this.errorReply("No dishes found. Add some dishes first.");
@@ -108,13 +108,13 @@ export const commands: ChatCommands = {
 		return this.sendReplyBox(`<div class="ladder"><table style="text-align:center;"><tr><th colspan="7" style="font-size:10pt;">Your dish is: <u>${newDish}</u></th></tr><tr><th>Team</th>${team.map(mon => `<td><psicon pokemon="${mon}"/> ${mon}</td>`).join('')}</tr><tr><th>Ingredients</th>${newIngredients.map(ingredient => `<td>${ingredient}</td>`).join('')}</tr>${importStr}</table></div>`);
 	},
 	checkfoodfight(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== thecafe.roomid) return this.errorReply("This command is only available in The Café.");
 
 		const targetUser = this.targetUserOrSelf(target, false);
 		if (!targetUser) return this.errorReply(`User ${this.targetUsername} not found.`);
 		const self = targetUser === user;
-		if (!self) this.checkCan('mute', targetUser, room);
+		if (!self && !this.can('mute', targetUser, room)) return false;
 		if (!targetUser.foodfight) {
 			return this.errorReply(`${self ? `You don't` : `This user doesn't`} have an active Foodfight team.`);
 		}
@@ -122,9 +122,9 @@ export const commands: ChatCommands = {
 	},
 	addingredients: 'adddish',
 	adddish(target, room, user, connection, cmd) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== thecafe.roomid) return this.errorReply("This command is only available in The Café.");
-		this.checkCan('mute', null, room);
+		if (!this.can('mute', null, room)) return false;
 
 		let [dish, ...ingredients] = target.split(',');
 		dish = dish.trim();
@@ -157,9 +157,9 @@ export const commands: ChatCommands = {
 		this.sendReply(`${cmd.slice(3)} '${dish}: ${ingredients.join(', ')}' added successfully.`);
 	},
 	removedish(target, room, user) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== thecafe.roomid) return this.errorReply("This command is only available in The Café.");
-		this.checkCan('mute', null, room);
+		if (!this.can('mute', null, room)) return false;
 
 		const id = toID(target);
 		if (id === 'constructor') return this.errorReply("Invalid dish.");
@@ -170,7 +170,7 @@ export const commands: ChatCommands = {
 		this.sendReply(`Dish '${target}' deleted successfully.`);
 	},
 	viewdishes(target, room, user, connection) {
-		room = this.requireRoom();
+		if (!room) return this.requiresRoom();
 		if (room.roomid !== thecafe.roomid) return this.errorReply("This command is only available in The Café.");
 
 		return this.parse(`/join view-foodfight`);

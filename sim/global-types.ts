@@ -1191,7 +1191,7 @@ interface GameTimerSettings {
 	accelerate: boolean;
 }
 
-interface FormatData extends EventMethods {
+interface FormatsData extends EventMethods {
 	name: string;
 
 	banlist?: string[];
@@ -1253,10 +1253,9 @@ interface FormatData extends EventMethods {
 	column?: number;
 }
 
-type FormatList = (FormatData | {section: string, column?: number})[];
-type ModdedFormatData = FormatData | Omit<FormatData, 'name'> & {inherit: true};
+type ModdedFormatsData = FormatsData | Omit<FormatsData, 'name'> & {inherit: true};
 
-interface Format extends Readonly<BasicEffect & FormatData> {
+interface Format extends Readonly<BasicEffect & FormatsData> {
 	readonly effectType: 'Format' | 'Ruleset' | 'Rule' | 'ValidatorRule';
 	readonly baseRuleset: string[];
 	readonly banlist: string[];

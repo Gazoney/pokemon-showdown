@@ -39,7 +39,8 @@ export const Scripts: ModdedBattleScriptsData = {
 			if (stat !== 'hp') {
 				stats[stat] = Math.floor(stats[stat] * friendshipValue / 100);
 			}
-			stats[stat] += set.evs[stat];
+			// @ts-ignore
+			stats[stat] += this.getAwakeningValues(set, stat);
 		}
 		return stats;
 	},

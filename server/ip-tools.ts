@@ -46,8 +46,7 @@ export const IPTools = new class {
 
 	// eslint-disable-next-line max-len
 	readonly ipRegex = /\b(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\b/;
-	// eslint-disable-next-line max-len
-	readonly ipRangeRegex = /^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]|\*)){0,2}\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]|\*)$/;
+
 	readonly hostRegex = /^.+\..{2,}$/;
 
 	async lookup(ip: string) {
@@ -152,13 +151,6 @@ export const IPTools = new class {
 	}
 	stringToRange(range: string): AddressRange | null {
 		if (!range) return null;
-		if (range.endsWith('*')) {
-			const [a, b, c] = range.replace('*', '').split('.');
-			return {
-				minIP: IPTools.ipToNumber(`${a || '0'}.${b || '0'}.${c || '0'}.0`),
-				maxIP: IPTools.ipToNumber(`${a || '255'}.${b || '255'}.${c || '255'}.255`),
-			};
-		}
 		const index = range.indexOf('-');
 		if (index <= 0) {
 			return range.includes('/') ? IPTools.getCidrRange(range) : {

@@ -91,7 +91,7 @@ describe('Rooms features', function () {
 			roomStaff.forceRename("Room auth", true);
 			const administrator = new User();
 			administrator.forceRename("Admin", true);
-			administrator.tempGroup = '~';
+			administrator.group = '~';
 			const options = {
 				p1,
 				p2,
