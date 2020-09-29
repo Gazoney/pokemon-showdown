@@ -108,7 +108,7 @@ export const Formats: (FormatsData | {section: string, column?: number})[] = [
 
 		mod: 'gen7',
 		gameType: 'doubles',
-		searchShow: false,
+		searchShow: true,
 		forcedLevel: 50,
 		teamLength: {
 			validate: [4, 6],
@@ -137,7 +137,7 @@ export const Formats: (FormatsData | {section: string, column?: number})[] = [
 
 		mod: 'gen7',
 		gameType: 'doubles',
-		searchShow: false,
+		searchShow: true,
 		forcedLevel: 50,
 		teamLength: {
 			validate: [4, 6],
@@ -167,7 +167,7 @@ export const Formats: (FormatsData | {section: string, column?: number})[] = [
 
 		mod: 'gen7',
 		gameType: 'doubles',
-		searchShow: false,
+		searchShow: true,
 		forcedLevel: 50,
 		teamLength: {
 			validate: [4, 6],
@@ -198,7 +198,7 @@ export const Formats: (FormatsData | {section: string, column?: number})[] = [
 
 		mod: 'gen7',
 		gameType: 'doubles',
-		searchShow: false,
+		searchShow: true,
 		forcedLevel: 50,
 		teamLength: {
 			validate: [4, 6],
@@ -227,7 +227,7 @@ export const Formats: (FormatsData | {section: string, column?: number})[] = [
 
 		mod: 'vgc17',
 		gameType: 'doubles',
-		searchShow: false,
+		searchShow: true,
 		forcedLevel: 50,
 		teamLength: {
 			validate: [4, 6],
@@ -261,7 +261,7 @@ export const Formats: (FormatsData | {section: string, column?: number})[] = [
 
 		mod: 'gen6',
 		gameType: 'doubles',
-		searchShow: false,
+		searchShow: true,
 		maxForcedLevel: 50,
 		teamLength: {
 			validate: [4, 6],
@@ -290,7 +290,7 @@ export const Formats: (FormatsData | {section: string, column?: number})[] = [
 
 		mod: 'gen6',
 		gameType: 'doubles',
-		searchShow: false,
+		searchShow: true,
 		maxForcedLevel: 50,
 		teamLength: {
 			validate: [4, 6],
@@ -314,7 +314,7 @@ export const Formats: (FormatsData | {section: string, column?: number})[] = [
 
 		mod: 'vgc16',
 		gameType: 'doubles',
-		searchShow: false,
+		searchShow: true,
 		maxForcedLevel: 50,
 		teamLength: {
 			validate: [4, 6],
@@ -347,7 +347,7 @@ export const Formats: (FormatsData | {section: string, column?: number})[] = [
 
 		mod: 'gen5',
 		gameType: 'doubles',
-		searchShow: false,
+		searchShow: true,
 		maxForcedLevel: 50,
 		teamLength: {
 			validate: [4, 6],
@@ -361,7 +361,7 @@ export const Formats: (FormatsData | {section: string, column?: number})[] = [
 
 		mod: 'gen5',
 		gameType: 'doubles',
-		searchShow: false,
+		searchShow: true,
 		maxForcedLevel: 50,
 		teamLength: {
 			validate: [4, 6],
@@ -375,7 +375,7 @@ export const Formats: (FormatsData | {section: string, column?: number})[] = [
 
 		mod: 'gen5',
 		gameType: 'doubles',
-		searchShow: false,
+		searchShow: true,
 		maxForcedLevel: 50,
 		teamLength: {
 			validate: [4, 6],
@@ -392,14 +392,14 @@ export const Formats: (FormatsData | {section: string, column?: number})[] = [
 
 		mod: 'gen4',
 		gameType: 'doubles',
-		searchShow: false,
+		searchShow: true,
 		maxForcedLevel: 50,
 		teamLength: {
 			validate: [4, 6],
 			battle: 4,
 		},
 
-		ruleset: ['No Preview VGC'],
+		ruleset: ['Empty Team Preview'],
 		banlist: ['Soul Dew'],
 		onValidateTeam(team) {
 			const legends = [
@@ -421,7 +421,7 @@ export const Formats: (FormatsData | {section: string, column?: number})[] = [
 
 		mod: 'gen4',
 		gameType: 'doubles',
-		searchShow: false,
+		searchShow: true,
 		maxForcedLevel: 50,
 		teamLength: {
 			validate: [4, 6],
@@ -436,7 +436,7 @@ export const Formats: (FormatsData | {section: string, column?: number})[] = [
 
 		mod: 'gen4',
 		gameType: 'doubles',
-		searchShow: false,
+		searchShow: true,
 		maxForcedLevel: 50,
 		teamLength: {
 			validate: [4, 6],

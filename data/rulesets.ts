@@ -315,6 +315,17 @@ export const Formats: {[k: string]: FormatsData} = {
 			this.makeRequest('teampreview');
 		},
 	},
+	emptyteampreview: {
+		effectType: 'Rule',
+		name: 'Empty Team Preview',
+		desc: "Allows each player to choose their Pok&eacute;mon without seeing their opponent's Pok&eacute;mon",
+		onBegin() {
+			this.add('clearpoke');
+		},
+		onTeamPreview() {
+			this.makeRequest('teampreview');
+		},
+	},
 	onevsone: {
 		effectType: 'Rule',
 		name: 'One vs One',
