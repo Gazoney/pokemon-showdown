@@ -10,10 +10,10 @@ import {GlobalPermission} from "../user-groups";
 
 const HOST_SUFFIXES = ['res', 'proxy', 'mobile'];
 
-const WHITELISTED_USERIDS = ['anubis'];
+const WHITELISTED_USERIDS: ID[] = [];
 
-function canPerform(context: PageContext | CommandContext, user: User, permission: GlobalPermission = 'lockdown') {
-	return WHITELISTED_USERIDS.includes(user.id) || context.can(permission);
+function checkCanPerform(context: PageContext | CommandContext, user: User, permission: GlobalPermission = 'lockdown') {
+	if (!WHITELISTED_USERIDS.includes(user.id)) context.checkCan(permission);
 }
 
 export function visualizeRangeList(ranges: AddressRange[]) {
@@ -28,10 +28,21 @@ export function visualizeRangeList(ranges: AddressRange[]) {
 	return html;
 }
 
+function formatRange(range: AddressRange, includeModlogBrackets?: boolean) {
+	const startBracket = includeModlogBrackets ? '[' : '';
+	const endBracket = includeModlogBrackets ? ']' : '';
+
+	let result = `${startBracket}${IPTools.numberToIP(range.minIP)}${endBracket}`;
+	result += `-${startBracket}${IPTools.numberToIP(range.maxIP)}${endBracket}`;
+	if (range.host) result += ` (${range.host})`;
+
+	return result;
+}
+
 export const pages: PageTable = {
 	proxies(query, user) {
 		this.title = "[Proxies]";
-		if (!canPerform(this, user, 'globalban')) return 'Permission denied.';
+		checkCanPerform(this, user, 'globalban');
 
 		const openProxies = [...IPTools.singleIPOpenProxies];
 		const proxyHosts = [...IPTools.proxyHosts];
@@ -59,7 +70,7 @@ export const pages: PageTable = {
 
 	hosts(query, user) {
 		this.title = "[Hosts]";
-		if (!canPerform(this, user, 'globalban')) return 'Permission denied.';
+		checkCanPerform(this, user, 'globalban');
 		const type = toID(query[0]) || 'all';
 
 		IPTools.sortRanges();
@@ -91,7 +102,7 @@ export const pages: PageTable = {
 
 	ranges(query, user) {
 		this.title = "[IP Ranges]";
-		if (!canPerform(this, user, 'globalban')) return 'Permission denied.';
+		checkCanPerform(this, user, 'globalban');
 		const type = toID(query[0]) || 'all';
 		IPTools.sortRanges();
 
@@ -116,16 +127,40 @@ export const pages: PageTable = {
 
 	sharedipblacklist(args, user, connection) {
 		this.title = `[Shared IP Blacklist]`;
-		if (!canPerform(this, user, 'globalban')) return `<h2>Access denied.</h2>`;
+		checkCanPerform(this, user, 'globalban');
 
 		let buf = `<div class="pad"><h2>IPs blocked from being marked as shared</h2>`;
 		if (!Punishments.sharedIpBlacklist.size) {
 			buf += `<p>None currently.</p>`;
 		} else {
 			buf += `<div class="ladder"><table><tr><th>IP</th><th>Reason</th></tr>`;
-			Punishments.sharedIpBlacklist.forEach((reason, ip) => {
+			const sortedSharedIPBlacklist = [...Punishments.sharedIpBlacklist];
+			sortedSharedIPBlacklist.sort((a, b) => IPTools.ipSort(a[1], b[1]));
+
+			for (const [reason, ip] of sortedSharedIPBlacklist) {
 				buf += `<tr><td>${ip}</td><td>${reason}</td></tr>`;
-			});
+			}
+			buf += `</table></div>`;
+		}
+		buf += `</div>`;
+		return buf;
+	},
+
+	sharedips(args, user, connection) {
+		this.title = `[Shared IPs]`;
+		checkCanPerform(this, user, 'globalban');
+
+		let buf = `<div class="pad"><h2>IPs marked as shared</h2>`;
+		if (!Punishments.sharedIps.size) {
+			buf += `<p>None currently.</p>`;
+		} else {
+			buf += `<div class="ladder"><table><tr><th>IP</th><th>Location</th></tr>`;
+			const sortedSharedIPs = [...Punishments.sharedIps];
+			sortedSharedIPs.sort((a, b) => IPTools.ipSort(a[0], b[0]));
+
+			for (const [ip, location] of sortedSharedIPs) {
+				buf += `<tr><td>${ip}</td><td>${location}</td></tr>`;
+			}
 			buf += `</table></div>`;
 		}
 		buf += `</div>`;
@@ -146,7 +181,7 @@ export const commands: ChatCommands = {
 
 		show: 'view',
 		view(target, room, user) {
-			if (!canPerform(this, user, 'globalban')) return;
+			checkCanPerform(this, user, 'globalban');
 			const types = ['all', 'residential', 'res', 'mobile', 'proxy'];
 			const type = target ? toID(target) : 'all';
 			if (!types.includes(type)) {
@@ -162,75 +197,65 @@ export const commands: ChatCommands = {
 		// Originally by Zarel
 		widen: 'add',
 		add(target, room, user, connection, cmd) {
-			if (!canPerform(this, user, 'globalban')) return false;
+			checkCanPerform(this, user, 'globalban');
 			if (!target) return this.parse('/help ipranges add');
 			// should be in the format: IP, IP, name, URL
 			const widen = cmd.includes('widen');
 
-			const rangesToAdd: AddressRange[] = [];
-			for (const row of target.split('\n')) {
-				const [type, stringRange, host] = row.split(',').map(part => part.trim());
-				if (!host || !IPTools.hostRegex.test(host)) {
-					return this.errorReply(`Invalid data: ${row}`);
-				}
-				if (!HOST_SUFFIXES.includes(type)) {
-					return this.errorReply(`'${type}' is not a valid host type. Please specify one of ${HOST_SUFFIXES.join(', ')}.`);
-				}
-				const range = IPTools.stringToRange(stringRange);
-				if (!range) return this.errorReply(`Couldn't parse IP range '${stringRange}'.`);
-				range.host = `${IPTools.urlToHost(host)}?/${type}`;
-				rangesToAdd.push(range);
+			const [type, stringRange, host] = target.split(',').map(part => part.trim());
+			if (!host || !IPTools.hostRegex.test(host)) {
+				return this.errorReply(`Invalid data: ${target}`);
 			}
-
-			let successes = 0;
-			for (const range of rangesToAdd) {
-				IPTools.sortRanges();
-				let result;
-				try {
-					result = IPTools.checkRangeConflicts(range, IPTools.ranges, widen);
-				} catch (e) {
-					return this.errorReply(e.message);
-				}
-				if (typeof result === 'number') {
-					// Remove the range that is being widened
-					IPTools.removeRange(IPTools.ranges[result].minIP, IPTools.ranges[result].maxIP);
-				}
-				successes++;
-				IPTools.addRange(range);
+			if (!HOST_SUFFIXES.includes(type)) {
+				return this.errorReply(`'${type}' is not a valid host type. Please specify one of ${HOST_SUFFIXES.join(', ')}.`);
 			}
+			const range = IPTools.stringToRange(stringRange);
+			if (!range) return this.errorReply(`Couldn't parse IP range '${stringRange}'.`);
+			range.host = `${IPTools.urlToHost(host)}?/${type}`;
 
-			this.globalModlog('IPRANGE ADD', null, `by ${user.id}: added ${successes} IP ranges`);
-			return this.sendReply(`Successfully added ${successes} IP ranges!`);
+			IPTools.sortRanges();
+			let result;
+			try {
+				result = IPTools.checkRangeConflicts(range, IPTools.ranges, widen);
+			} catch (e) {
+				return this.errorReply(e.message);
+			}
+			if (typeof result === 'number') {
+				// Remove the range that is being widened
+				IPTools.removeRange(IPTools.ranges[result].minIP, IPTools.ranges[result].maxIP);
+			}
+			IPTools.addRange(range as AddressRange & {host: string});
+
+			this.privateGlobalModAction(`${user.name} added the IP range ${formatRange(range)} to the list of ${type} ranges.`);
+			this.globalModlog('IPRANGE ADD', null, formatRange(range, true));
 		},
 		addhelp: [
-			`/ipranges add [type], [low]-[high], [host] - Add IP ranges (can be multiline). Requires: hosts manager &`,
-			`/ipranges widen [type], [low]-[high], [host] - Add IP ranges, allowing a new range to completely cover an old range. Requires: hosts manager &`,
+			`/ipranges add [type], [low]-[high], [host] - Adds an IP range. Requires: hosts manager &`,
+			`/ipranges widen [type], [low]-[high], [host] - Adds an IP range, allowing a new range to completely cover an old range. Requires: hosts manager &`,
 			`For example: /ipranges add proxy, 5.152.192.0 - 5.152.223.255, redstation.com`,
 			`Get datacenter info from whois; [low], [high] are the range in the last inetnum; [type] is one of res, proxy, or mobile.`,
 		],
 
 		remove(target, room, user) {
-			if (!canPerform(this, user)) return false;
+			checkCanPerform(this, user);
 			if (!target) return this.parse('/help ipranges remove');
-			let removed = 0;
-			for (const row of target.split('\n')) {
-				const range = IPTools.stringToRange(row);
-				if (!range) return this.errorReply(`Couldn't parse the IP range '${row}'.`);
-				if (!IPTools.getRange(range.minIP, range.maxIP)) return this.errorReply(`No IP range found at '${row}'.`);
 
-				void IPTools.removeRange(range.minIP, range.maxIP);
-				removed++;
-			}
-			this.globalModlog('IPRANGE REMOVE', null, `by ${user.id}: ${removed} IP ranges`);
-			return this.sendReply(`Removed ${removed} IP ranges!`);
+			const range = IPTools.stringToRange(target);
+			if (!range) return this.errorReply(`Couldn't parse the IP range '${target}'.`);
+			if (!IPTools.getRange(range.minIP, range.maxIP)) return this.errorReply(`No IP range found at '${target}'.`);
+
+			void IPTools.removeRange(range.minIP, range.maxIP);
+
+			this.privateGlobalModAction(`${user.name} removed the IP range ${formatRange(range)}.`);
+			this.globalModlog('IPRANGE REMOVE', null, formatRange(range, true));
 		},
 		removehelp: [
-			`/ipranges remove [low IP]-[high IP] - Remove IP range(s). Can be multiline. Requires: hosts manager &`,
+			`/ipranges remove [low IP]-[high IP] - Removes an IP range. Requires: hosts manager &`,
 			`Example: /ipranges remove 5.152.192.0-5.152.223.255`,
 		],
 
 		rename(target, room, user) {
-			if (!canPerform(this, user)) return false;
+			checkCanPerform(this, user);
 			if (!target) return this.parse('/help ipranges rename');
 			const [type, rangeString, url] = target.split(',').map(part => part.trim());
 			if (!url) {
@@ -247,9 +272,9 @@ export const commands: ChatCommands = {
 				host: `${IPTools.urlToHost(url)}?/${type}`,
 			};
 			void IPTools.addRange(range);
-			const renameInfo = `IP range at '${rangeString}' to ${range.host}`;
-			this.globalModlog('DATACENTER RENAME', null, `by ${user.id}: ${renameInfo}`);
-			return this.sendReply(`Renamed the ${renameInfo}.`);
+
+			this.privateGlobalModAction(`${user.name} renamed the IP range ${formatRange(toRename)} to ${range.host}.`);
+			this.globalModlog('IPRANGE RENAME', null, `IP range ${formatRange(toRename, true)} to ${range.host}`);
 		},
 		renamehelp: [
 			`/ipranges rename [type], [low IP]-[high IP], [host] - Changes the host an IP range resolves to.  Requires: hosts manager &`,
@@ -272,7 +297,7 @@ export const commands: ChatCommands = {
 	},
 
 	viewhosts(target, room, user) {
-		if (!canPerform(this, user, 'globalban')) return false;
+		checkCanPerform(this, user, 'globalban');
 		const types = ['all', 'residential', 'mobile', 'ranges'];
 		const type = target ? toID(target) : 'all';
 		if (!types.includes(type)) {
@@ -290,7 +315,7 @@ export const commands: ChatCommands = {
 	removehosts: 'addhosts',
 	addhost: 'addhosts',
 	addhosts(target, room, user, connection, cmd) {
-		if (!canPerform(this, user)) return false;
+		checkCanPerform(this, user);
 		const removing = cmd.includes('remove');
 		let [type, ...hosts] = target.split(',');
 		type = toID(type);
@@ -353,12 +378,10 @@ export const commands: ChatCommands = {
 		default:
 			return this.errorReply(`'${type}' isn't one of 'openproxy', 'proxy', 'residential', or 'mobile'.`);
 		}
-		this.globalModlog(
-			removing ? 'REMOVEHOSTS' : 'ADDHOSTS',
-			null,
-			`by ${user.id}: ${hosts.length} hosts to category '${type}'`
+		this.privateGlobalModAction(
+			`${user.name} ${removing ? 'removed' : 'added'} ${hosts.length} hosts (${hosts.join(', ')}) to the ${type} category!`
 		);
-		return this.sendReply(`${removing ? 'Removed' : 'Added'} ${hosts.length} hosts!`);
+		this.globalModlog(removing ? 'REMOVEHOSTS' : 'ADDHOSTS', null, `${type}: ${hosts.join(', ')}`);
 	},
 	addhostshelp: [
 		`/addhosts [category], host1, host2, ... - Adds hosts to the given category. Requires: hosts manager &`,
@@ -367,7 +390,7 @@ export const commands: ChatCommands = {
 	],
 
 	viewproxies(target, room, user) {
-		if (!canPerform(this, user, 'globalban')) return false;
+		checkCanPerform(this, user, 'globalban');
 		return this.parse('/join view-proxies');
 	},
 	viewproxieshelp: [
@@ -376,8 +399,8 @@ export const commands: ChatCommands = {
 
 	markshared(target, room, user) {
 		if (!target) return this.parse('/help markshared');
-		if (!canPerform(this, user, 'globalban')) return false;
-		let [ip, note] = this.splitOne(target);
+		checkCanPerform(this, user, 'globalban');
+		const [ip, note] = this.splitOne(target);
 		if (!IPTools.ipRegex.test(ip)) return this.errorReply("Please enter a valid IP address.");
 
 		if (Punishments.sharedIps.has(ip)) return this.errorReply("This IP is already marked as shared.");
@@ -391,10 +414,8 @@ export const commands: ChatCommands = {
 		}
 
 		Punishments.addSharedIp(ip, note);
-		note = ` (${note})`;
-
-		this.privateGlobalModAction(`The IP '${ip}' was marked as shared by ${user.name}.${note}`);
-		this.globalModlog('SHAREDIP', ip, ` by ${user.name}${note}`);
+		this.privateGlobalModAction(`The IP '${ip}' was marked as shared by ${user.name}. (${note})`);
+		this.globalModlog('SHAREDIP', null, note, ip);
 	},
 	marksharedhelp: [
 		`/markshared [IP], [owner/organization of IP] - Marks an IP address as shared.`,
@@ -403,7 +424,7 @@ export const commands: ChatCommands = {
 
 	unmarkshared(target, room, user) {
 		if (!target) return this.parse('/help unmarkshared');
-		if (!canPerform(this, user, 'globalban')) return false;
+		checkCanPerform(this, user, 'globalban');
 		if (!IPTools.ipRegex.test(target)) return this.errorReply("Please enter a valid IP address.");
 
 		if (!Punishments.sharedIps.has(target)) return this.errorReply("This IP isn't marked as shared.");
@@ -411,7 +432,7 @@ export const commands: ChatCommands = {
 		Punishments.removeSharedIp(target);
 
 		this.privateGlobalModAction(`The IP '${target}' was unmarked as shared by ${user.name}.`);
-		this.globalModlog('UNSHAREDIP', target, ` by ${user.name}`);
+		this.globalModlog('UNSHAREDIP', null, null, target);
 	},
 	unmarksharedhelp: [`/unmarkshared [IP] - Unmarks a shared IP address. Requires @ &`],
 
@@ -420,7 +441,7 @@ export const commands: ChatCommands = {
 	nomarkshared: {
 		add(target, room, user) {
 			if (!target) return this.parse(`/help nomarkshared`);
-			if (!canPerform(this, user)) return false;
+			checkCanPerform(this, user);
 			const [ip, ...reasonArr] = target.split(',');
 			if (!IPTools.ipRegex.test(ip)) return this.errorReply(`Please enter a valid IP address.`);
 			if (!reasonArr?.length) {
@@ -437,11 +458,11 @@ export const commands: ChatCommands = {
 			Punishments.addBlacklistedSharedIp(ip, reason);
 
 			this.privateGlobalModAction(`The IP '${ip}' was blacklisted from being marked as shared by ${user.name}.`);
-			this.globalModlog('SHAREDIP BLACKLIST', ip, ` by ${user.name}: ${reason.trim()}`);
+			this.globalModlog('SHAREDIP BLACKLIST', ip, reason.trim());
 		},
 		remove(target, room, user) {
 			if (!target) return this.parse(`/help nomarkshared`);
-			if (!canPerform(this, user)) return false;
+			checkCanPerform(this, user);
 			if (!IPTools.ipRegex.test(target)) return this.errorReply(`Please enter a valid IP address.`);
 			if (!Punishments.sharedIpBlacklist.has(target)) {
 				return this.errorReply(`This IP is not blacklisted from being marked as shared.`);
@@ -450,7 +471,7 @@ export const commands: ChatCommands = {
 			Punishments.removeBlacklistedSharedIp(target);
 
 			this.privateGlobalModAction(`The IP '${target}' was unblacklisted from being marked as shared by ${user.name}.`);
-			this.globalModlog('SHAREDIP UNBLACKLIST', target, ` by ${user.name}`);
+			this.globalModlog('SHAREDIP UNBLACKLIST', target);
 		},
 		view() {
 			return this.parse(`/join view-sharedipblacklist`);
@@ -466,8 +487,12 @@ export const commands: ChatCommands = {
 		`/nomarkshared remove [IP] - Removes an IP from the nomarkshared list. Requires &`,
 		`/nomarkshared view - Lists all IPs prevented from being marked as shared. Requires @ &`,
 	],
-};
 
-process.nextTick(() => {
-	Chat.multiLinePattern.register('/(datacenters|datacenter|dc|iprange|ipranges) (add|widen|remove)');
-});
+	sharedips: 'viewsharedips',
+	viewsharedips() {
+		return this.parse('/join view-sharedips');
+	},
+	viewsharedipshelp: [
+		`/viewsharedips — Lists IP addresses marked as shared. Requires: hosts manager @ &`,
+	],
+};
