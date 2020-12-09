@@ -11,6 +11,22 @@ export const Formats: (FormatsData | {section: string, column?: number})[] = [
 		section: "Gen 8 VGC",
 	},
 	{
+		name: "[Gen 8] VGC 2021 [Series 7]",
+		threads: [
+			`&bullet; <a href="https://www.smogon.com/forums/threads/3672129/">VGC 2021 Metagame Discussion & Resources</a>`,
+		],
+
+		mod: 'gen8',
+		gameType: 'doubles',
+		forcedLevel: 50,
+		teamLength: {
+			validate: [4, 6],
+			battle: 4,
+		},
+		ruleset: ['Standard GBU', 'VGC Timer'],
+		minSourceGen: 8,
+	},
+	{
 		name: "[Gen 8] VGC 2020 [Series 6]",
 
 		mod: 'gen8',
