@@ -6430,15 +6430,15 @@ export const FormatsData: {[k: string]: SpeciesFormatsData} = {
 	},
 	//PatratDex
 	berribat: {
-		tier: "LC",
+		isNonstandard: "Custom",
+		tier: "CAP LC",
 	},
 	apricount: {
-		tier: "NFE",
+		isNonstandard: "Custom",
+		tier: "CAP NFE",
 	},
 	noctureen: {
-		randomBattleMoves: ["gigadrain", "leechseed", "airslash", "shadowball", "substitute"],
-		randomBattleLevel: 82,
-		tier: "RUBL",
-		doublesTier: "(DUU)",
+		isNonstandard: "Custom",
+		tier: "CAP",
 	},
 };
