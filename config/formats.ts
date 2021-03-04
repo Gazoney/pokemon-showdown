@@ -11,6 +11,34 @@ export const Formats: (FormatsData | {section: string, column?: number})[] = [
 		section: "Gen 8 VGC",
 	},
 	{
+		name: "[Gen 8] VGC 2021 [Series 8]",
+
+		mod: 'gen8',
+		gameType: 'doubles',
+		searchShow: true,
+		forcedLevel: 50,
+		teamLength: {
+			validate: [4, 6],
+			battle: 4,
+		},
+		ruleset: ['Off Standard GBU', 'VGC Timer'],
+		minSourceGen: 8,
+	},
+	{
+		name: "[Gen 8] GS Cup (Old)",
+
+		mod: 'gen8',
+		gameType: 'doubles',
+		searchShow: true,
+		forcedLevel: 50,
+		teamLength: {
+			validate: [4, 6],
+			battle: 4,
+		},
+		ruleset: ['Minimal GBU', 'VGC Timer'],
+		minSourceGen: 8,
+	},
+	{
 		name: "[Gen 8] VGC 2021 [Series 7]",
 		threads: [
 			`&bullet; <a href="https://www.smogon.com/forums/threads/3672129/">VGC 2021 Metagame Discussion & Resources</a>`,
@@ -405,7 +433,7 @@ export const Formats: (FormatsData | {section: string, column?: number})[] = [
 			battle: 4,
 		},
 
-		ruleset: ['Empty Team Preview'],
+		ruleset: ['No Preview VGC'],
 		banlist: ['Soul Dew'],
 		onValidateTeam(team) {
 			const legends = [
