@@ -6428,4 +6428,17 @@ export const FormatsData: {[k: string]: SpeciesFormatsData} = {
 		isNonstandard: "Custom",
 		tier: "Illegal",
 	},
+	//PatratDex
+	berribat: {
+		tier: "LC",
+	},
+	apricount: {
+		tier: "NFE",
+	},
+	noctureen: {
+		randomBattleMoves: ["gigadrain", "leechseed", "airslash", "shadowball", "substitute"],
+		randomBattleLevel: 82,
+		tier: "RUBL",
+		doublesTier: "(DUU)",
+	},
 };
